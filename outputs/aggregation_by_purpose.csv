@@ -1,0 +1,15 @@
+purpose,loan_count,total_loan_amnt,default_rate
+debt_consolidation,5825,89663200.0,0.2266
+credit_card,2176,32312875.0,0.1765
+home_improvement,692,10042100.0,0.1965
+other,570,5359175.0,0.2281
+major_purchase,196,2533600.0,0.1786
+medical,118,1141800.0,0.2627
+small_business,107,1532800.0,0.2897
+car,107,1049925.0,0.1589
+vacation,65,479250.0,0.2154
+house,60,973575.0,0.1
+moving,53,415050.0,0.2453
+wedding,16,144825.0,0.125
+renewable_energy,10,87950.0,0.2
+educational,5,34200.0,0.4

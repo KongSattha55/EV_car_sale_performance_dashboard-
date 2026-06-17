@@ -1,0 +1,7 @@
+column_a,column_b,correlation
+int_rate,fico_range_low,-0.3956364988110454
+int_rate,dti,0.181329362383769
+int_rate,default,0.27046453611476695
+loan_amnt,annual_inc,0.47299752067079504
+dti,default,0.11286342104353787
+annual_inc,default,-0.062025047512123795

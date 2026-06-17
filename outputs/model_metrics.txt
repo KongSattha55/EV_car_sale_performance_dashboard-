@@ -1,0 +1,3 @@
+Logistic Regression - predicting `default`
+Test AUC: 0.7070
+Test Accuracy: 0.7850
