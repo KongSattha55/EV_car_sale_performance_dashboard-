@@ -1,3 +1,3 @@
-Logistic Regression - predicting `default`
-Test AUC: 0.7070
-Test Accuracy: 0.7850
+Optimized Logistic Regression Classifier
+Test AUC: 0.7008
+Test Accuracy: 0.8053

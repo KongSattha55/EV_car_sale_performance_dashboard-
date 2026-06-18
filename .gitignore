@@ -6,3 +6,4 @@ __pycache__/
 spark-warehouse/
 *.log
 metastore_db/
+Project_03.zip

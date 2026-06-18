@@ -1,248 +1,114 @@
-# Final Project Plan: PySpark/Kafka/Hadoop → SQL Server/MongoDB → Power BI
+# Final Project Report: PySpark & SQL Server Loan Default Prediction Pipeline
 
-**Course:** Big Data / Database Systems  
-**Presentation Date:** June 19, 2026  
-**Student:** Kong Sattha
+## 1. Project Overview
 
----
-
-## Project Overview
-
-A 4-layer data pipeline that ingests a dataset into SQL Server and MongoDB, processes and analyzes it using PySpark (with optional Kafka/Hadoop), and visualizes results in Power BI or Tableau.
-
-### Minimum Requirements Checklist
-
-- [ ] Input data into SQL Server and/or MongoDB
-- [ ] Use PySpark to connect to SQL Server / MongoDB
-- [ ] Apply data analysis using PySpark / Kafka / Hadoop
-- [ ] Visualize results in Power BI / Tableau from SQL Server / MongoDB
-
----
-
-## Architecture
+An end-to-end big data pipeline implemented entirely on a Windows environment. The pipeline ingests 10,000 loan records into a local Microsoft SQL Server instance, processes and analyzes the data using PySpark, runs an optimized machine learning model with feature scaling and tuned classification thresholding, and visualizes the results live in Power BI.
 
 ```
-[Raw Data Source]
-   CSV / JSON / API
-        │
-        ▼
-┌───────────────────────────────┐
-│         INGEST LAYER          │
-│  SQL Server (AWS RDS Free)    │◄──── also ────►  MongoDB Atlas (M0 Free)
-└───────────────────────────────┘
-        │                                                │
-        ▼ (optional)                                     ▼ (optional)
-  ┌──────────┐          ┌─────────────┐
-  │  Kafka   │          │ Hadoop HDFS │   ← pick one for bonus points
-  └──────────┘          └─────────────┘
-        │                      │
-        └──────────┬────────────┘
-                   ▼
-        ┌─────────────────────┐
-        │       PySpark       │
-        │  EDA · Aggregations │
-        │  Transformations    │
-        │  Basic ML (optional)│
-        └─────────────────────┘
-                   │
-                   ▼
-        ┌─────────────────────┐
-        │  Power BI / Tableau │
-        │  (connects to DB)   │
-        └─────────────────────┘
+[Raw Dataset (CSV)]
+       │
+       ▼
+[PySpark Ingestion (load_sqlserver.py)]
+       │
+       ▼
+[SQL Server (Docker Container on Port 1433)]
+       │
+       ▼
+[PySpark ML Pipeline (test_model.py / model_prediction.ipynb)]
+       ├── Feature Engineering & StandardScaler
+       ├── Logistic Regression (Tuned Threshold = 0.25)
+       └── Saves back tables: 'processed_results' & 'loans_predictions'
+       │
+       ▼
+[Power BI Desktop (Direct Live Connection)]
+       ├── Page 1: Credit Risk Performance Overview
+       └── Page 2: Model-Predicted Risk Distribution
 ```
 
 ---
 
-## Recommended Stack (Mac-Friendly)
+## 2. Architecture & Tech Stack
 
-| Layer | Tool | Notes |
-|-------|------|-------|
-| SQL Server | AWS RDS Free Tier (`db.t3.micro`) | Free 12 months, accessible from Mac |
-| MongoDB | MongoDB Atlas M0 (Free Cluster) | No local install, cloud-hosted |
-| Processing | PySpark (local) | JDBC for SQL Server, `mongo-spark-connector` for MongoDB |
-| Optional streaming | Apache Kafka | Docker Compose setup |
-| Optional storage | Hadoop HDFS | Docker Compose setup |
-| Visualization | Power BI Desktop / Tableau Public | Power BI via ODBC on Mac (Parallels) or Power BI Service online |
-
----
-
-## Dataset Options
-
-Pick one — small but meaningful for analysis (10k+ rows recommended):
-
-- **Loan/credit data** — reuse cleaned LendingClub data from Loan Default Predictor project
-- **Economic indicators** — reuse World Bank/IMF data from EconFlow Pipeline project
-- Any public CSV with numeric columns for aggregation, trends, and basic modeling
+| Layer | Technology | Details |
+| :--- | :--- | :--- |
+| **OS** | Windows 11 | Direct local host deployment |
+| **Ingestion** | PySpark (3.5.1) | Reads CSV and writes raw dataset to SQL Server via JDBC (`mssql-jdbc-12.6.1.jre11.jar`) |
+| **Database** | MS SQL Server 2022 | Hosted inside a Docker container on port `1433` (Docker Desktop) |
+| **Processing / ML** | PySpark MLlib | Preprocessing, StringIndexing, One-Hot Encoding, StandardScaler, and Logistic Regression model |
+| **Visualization** | Power BI Desktop | Direct local SQL Server connection in Import/DirectQuery mode |
 
 ---
 
-## Week-by-Week Timeline
+## 3. Implementation Details
 
-### Now → June 13 — Setup & Data Ingestion
+### Step 1: Database Ingestion (`ingestion/load_sqlserver.py`)
+* Connects to SQL Server via `pymssql` to automatically verify and create the database `final_project` if it does not exist.
+* Initializes a Spark Session with the MS SQL Server JDBC driver, reads [raw_dataset.csv](file:///d:/Documents/itc_files/Year_04_Semester_02/Data%20Engineering/Project_03/data/raw_dataset.csv), and writes the raw data to the `loans` table.
 
-**Goals:** Environment ready, data loaded into both databases, PySpark connection verified.
+### Step 2: PySpark ML & Feature Engineering (`spark/test_model.py`)
+Reads the `loans` table from SQL Server, processes features, trains the model, and exports predictions.
 
-**Tasks:**
-- [ ] Spin up AWS RDS SQL Server (Free Tier) OR MongoDB Atlas M0 cluster
-- [ ] Write Python ingestion script to load dataset into SQL Server and MongoDB
-- [ ] Confirm PySpark can read from both:
-  - SQL Server: `spark.read.jdbc(url, table, properties)`
-  - MongoDB: `spark.read.format("mongo").option("uri", ...).load()`
-- [ ] (Optional) Set up Docker Compose with Kafka or Hadoop HDFS
-
-**Key code — PySpark + SQL Server:**
-```python
-from pyspark.sql import SparkSession
-
-spark = SparkSession.builder \
-    .appName("FinalProject") \
-    .config("spark.jars", "mssql-jdbc-12.4.2.jre11.jar") \
-    .getOrCreate()
-
-jdbc_url = "jdbc:sqlserver://<RDS_ENDPOINT>:1433;databaseName=<DB_NAME>"
-properties = {
-    "user": "<USERNAME>",
-    "password": "<PASSWORD>",
-    "driver": "com.microsoft.sqlserver.jdbc.SQLServerDriver"
-}
-
-df = spark.read.jdbc(url=jdbc_url, table="your_table", properties=properties)
-df.show(5)
-```
-
-**Key code — PySpark + MongoDB:**
-```python
-spark = SparkSession.builder \
-    .appName("FinalProject") \
-    .config("spark.mongodb.input.uri", "mongodb+srv://<user>:<pass>@cluster.mongodb.net/db.collection") \
-    .config("spark.jars.packages", "org.mongodb.spark:mongo-spark-connector_2.12:3.0.1") \
-    .getOrCreate()
-
-df = spark.read.format("mongo").load()
-df.show(5)
-```
+* **Feature Engineering:**
+  * Created ratio metrics: `loan_to_income`, `installment_to_income`, `revol_to_income`, and `open_to_total_acc` (safeguarded against division by zero by adding `+ 1.0` to the denominators).
+  * Mapped FICO score range to `fico_average`.
+  * Translated alphanumeric sub-grades (e.g., A1 to G5) to a continuous scale (`sub_grade_num` from 1 to 35).
+* **Preprocessing Pipeline:**
+  * Encoded categorical attributes (`home_ownership`, `purpose`, `verification_status`) using `StringIndexer` and `OneHotEncoder`.
+  * Scaled all 20 numerical features using `StandardScaler` to prevent regularization bias.
+* **Model Configuration & Threshold Tuning:**
+  * Model: ElasticNet Logistic Regression (`regParam=0.01`, `elasticNetParam=0.5`).
+  * Optimized Decision Threshold: Tuned to **`0.25`** (lowered from default `0.50`) to handle the imbalanced dataset (21.23% base default rate). This increased default detection (**Recall**) from **`8.5%` to `52.4%`**, significantly reducing credit risk exposure.
+* **Exports:** 
+  * Writes aggregated summaries by grade to `processed_results`.
+  * Writes all predictions (`predicted_default` and `default_probability`) to `loans_predictions`.
 
 ---
 
-### June 14–15 — PySpark Analysis
+## 4. Completed Power BI Dashboard
 
-**Goals:** At least 3 meaningful analyses completed, results written back to the database.
+Connected natively to SQL Server, the dashboard consists of two interactive pages:
 
-**Minimum analyses to include:**
-1. **Summary statistics** — `df.describe().show()`
-2. **Groupby aggregation** — e.g. average loan amount by grade, or GDP by region
-3. **Correlation / trend analysis** — `df.stat.corr("col_a", "col_b")` or time-series grouping
+### Page 1: Credit Risk Performance Overview
+* **KPI Cards:**
+  * **Total Loans:** 10K (Total count of records)
+  * **Actual Default Rate:** 21.2% (Historical default rate in database)
+  * **Predicted Default Rate:** 29.5% (Model predictions under optimized 0.25 threshold)
+  * **Avg Interest Rate:** 13.25% (Average borrowing rate)
+  * **Model Accuracy:** 80.5% (Out-of-sample test split accuracy)
+  * **Model AUC:** 70.1% (Out-of-sample test split AUC)
+* **Visualizations:**
+  * **Default Rate by Credit Grade:** Column chart displaying how actual defaults scale from Grade A (7%) up to Grade G (57%).
+  * **Interest Rate vs. Default Rate by Grade:** Combo chart showing the relationship between average interest rates (columns) and average default rate (line) per grade, highlighting higher borrowing rates for higher risk.
+  * **Default Rate by Home Ownership:** Horizontal bar chart showing RENT (24.2%), OWN (23.9%), and MORTGAGE (10.2%) default rates.
+  * **Default Rate by Loan Purpose:** Horizontal bar chart showing risk by loan purpose (e.g., Educational: 40.0%, Small Business: 29.0%, Medical: 26.3%).
 
-**Optional (bonus):**
-- Train a simple `pyspark.ml` classifier or regressor (e.g. LogisticRegression, RandomForestClassifier)
-- Kafka: add a producer that streams rows into the database in real time (even 30 seconds of live streaming is impressive)
-- Hadoop: read raw CSV from HDFS first, then write processed output to SQL Server/MongoDB
-
-**Write results back to DB:**
-```python
-# Write processed/gold table back to SQL Server
-df_result.write.jdbc(url=jdbc_url, table="processed_results", mode="overwrite", properties=properties)
-```
-
----
-
-### June 16–17 — Power BI / Tableau Dashboard
-
-**Goals:** 3–4 polished visuals connected to your live database.
-
-**Recommended visuals:**
-1. **KPI card** — total records, average value, or model accuracy
-2. **Bar or column chart** — aggregated metric by category
-3. **Line chart** — trend over time
-4. **Distribution / histogram** — key numeric variable
-
-**Power BI connection (Mac via Parallels or Power BI Service):**
-- Use ODBC driver for SQL Server: `Server=<RDS_ENDPOINT>,1433; Database=<DB>; UID=...; PWD=...`
-- Import the `processed_results` table (written by PySpark in the previous step)
-
-**Tableau Public (no Parallels needed):**
-- Connect to MongoDB Atlas via the MongoDB Connector for BI (mongosql)
-- Or export PySpark results to CSV and connect from Tableau directly
+### Page 2: Model-Predicted Risk Distribution
+* **Visualizations:**
+  * **Model-Predicted Risk Distribution:** Column chart showing count of loans by risk tier bins:
+    * *Very Low (<10%)*
+    * *Low (10-20%)*
+    * *Moderate (20-30%)*
+    * *High (30-40%)*
+    * *Very High (>=40%)*
+  * **Slicers/Filters:** Interactive credit grade and home ownership controls for active risk profile drills.
 
 ---
 
-### June 18 — Slides & Rehearsal
-
-**Presentation structure (10–15 min):**
-
-1. **Problem statement** (1 min) — what dataset, what questions
-2. **Architecture diagram** (1 min) — show the pipeline overview
-3. **Demo: data ingestion** (2 min) — show Python script inserting rows, confirm in DB
-4. **Demo: PySpark connection & analysis** (3–4 min) — run `spark.read.jdbc(...)`, show aggregation outputs
-5. **Demo: Power BI dashboard** (2–3 min) — live visuals connected to the database
-6. **Conclusions** (1–2 min) — findings, what you would improve, lessons learned
-
-**Tips:**
-- Use a small subset of data (5k–10k rows) so queries run fast during live demo
-- Have fallback screenshots in case of network issues on the day
-- Briefly mention Kafka or Hadoop even if optional — shows you understand the full stack
-
----
-
-### June 19 — Presentation Day 🎯
-
----
-
-## Quick Wins to Impress
-
-- Show `spark.read.jdbc(...)` or `spark.read.format("mongo")` **live** — directly satisfies requirement 2
-- Add a SHAP plot or feature importance from a PySpark MLlib model — ties to your Loan Default Predictor
-- If using Kafka: show consumer lag or a live message counter — even a 30-second stream demo is memorable
-- Frame your pipeline using the **medallion architecture** you used in the Finnhub project:
-  - **Bronze** → raw data in SQL Server
-  - **Silver** → PySpark-cleaned table written back to SQL Server/MongoDB
-  - **Gold** → aggregated results consumed by Power BI
-
----
-
-## Project File Structure
+## 5. File Structure
 
 ```
-final-project/
+Project_03/
 ├── data/
-│   └── raw_dataset.csv
+│   └── raw_dataset.csv          # 10,000 record loan sample
+├── hadoop/                      # local Hadoop binaries for Windows (winutils.exe)
 ├── ingestion/
-│   ├── load_sqlserver.py        # insert data into SQL Server
-│   └── load_mongodb.py          # insert data into MongoDB
+│   └── load_sqlserver.py        # Python ingestion to SQL Server
+├── power_bi/
+│   └── final_project.pbix       # Completed Power BI Dashboard
 ├── spark/
-│   ├── connect_sqlserver.py     # PySpark + JDBC read/write
-│   ├── connect_mongodb.py       # PySpark + Mongo connector
-│   └── analysis.py              # EDA, aggregations, optional ML
-├── kafka/                       # optional
-│   ├── producer.py
-│   └── consumer.py
-├── powerbi/
-│   └── dashboard.pbix           # Power BI report file
-├── docker-compose.yml           # optional: Kafka + Hadoop setup
-├── requirements.txt
-└── README.md
+│   ├── model_prediction.ipynb   # Interactive analysis & modeling notebook
+│   └── test_model.py            # Automated ML pipeline script
+├── docker-compose.yml           # SQL Server container configuration
+├── requirements.txt             # Python dependencies
+└── final_project_plan.md        # Project implementation documentation
 ```
-
----
-
-## Key Dependencies
-
-```txt
-pyspark==3.5.1
-pymongo==4.7.2
-pyodbc==5.1.0
-pandas==2.2.2
-scikit-learn==1.5.0        # optional, for preprocessing
-kafka-python==2.0.2        # optional
-python-dotenv==1.0.1
-```
-
----
-
-## Notes
-
-- **Mac users:** SQL Server runs on AWS RDS Free Tier — no local Windows VM required for the database itself. Power BI Desktop requires Windows (use Parallels) or use Power BI Service in the browser.
-- **MongoDB Atlas** M0 free cluster requires no credit card and is accessible from any IP.
-- **JDBC driver** for SQL Server: download `mssql-jdbc-12.x.jre11.jar` from Microsoft and pass it to `spark.jars`.
-- Keep credentials in a `.env` file — never commit passwords to GitHub.
