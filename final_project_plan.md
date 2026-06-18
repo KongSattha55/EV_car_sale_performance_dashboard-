@@ -47,12 +47,12 @@ The data pipeline follows the **Medallion Architecture** to systematically struc
 
 ## 3. Implementation Details
 
-### Step 1: Database Ingestion (`ingestion/load_sqlserver.py`)
+### Step 1: Bronze Layer Ingestion (`ingestion/load_sqlserver.py`)
 * Connects to SQL Server via `pymssql` to automatically verify and create the database `final_project` if it does not exist.
-* Initializes a Spark Session with the MS SQL Server JDBC driver, reads [raw_dataset.csv](file:///d:/Documents/itc_files/Year_04_Semester_02/Data%20Engineering/Project_03/data/raw_dataset.csv), and writes the raw data to the `loans` table.
+* Initializes a Spark Session with the MS SQL Server JDBC driver, reads [raw_dataset.csv](data/raw_dataset.csv), and writes the raw data to the `loans` table (Bronze Layer).
 
-### Step 2: PySpark ML & Feature Engineering (`spark/test_model.py`)
-Reads the `loans` table from SQL Server, processes features, trains the model, and exports predictions.
+### Step 2: Silver & Gold Layer Processing & Modeling (`spark/test_model.py`)
+Reads the raw `loans` table (Bronze Layer) from SQL Server, performs feature engineering and model prediction (Silver Layer), and exports aggregates (Gold Layer).
 
 * **Feature Engineering:**
   * Created ratio metrics: `loan_to_income`, `installment_to_income`, `revol_to_income`, and `open_to_total_acc` (safeguarded against division by zero by adding `+ 1.0` to the denominators).
